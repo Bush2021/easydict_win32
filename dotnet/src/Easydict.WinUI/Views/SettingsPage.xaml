@@ -302,7 +302,7 @@
                                 <TextBox x:Name="OpenAIEndpointBox"
                                         Header="Endpoint (Optional)"
                                         Width="450"
-                                         PlaceholderText="https://api.openai.com/v1/chat/completions"
+                                         PlaceholderText="https://api.openai.com/v1/responses"
                                         HorizontalAlignment="Left"/>
                                 <ComboBox x:Name="OpenAIModelCombo"
                                         Header="Model"
@@ -314,8 +314,6 @@
                                             Tag="gpt-4o"/>
                                     <ComboBoxItem Content="gpt-4-turbo"
                                             Tag="gpt-4-turbo"/>
-                                    <ComboBoxItem Content="gpt-3.5-turbo"
-                                            Tag="gpt-3.5-turbo"/>
                                 </ComboBox>
                                 <TextBlock Text="You can type a custom model name directly."
                                            FontSize="12"
