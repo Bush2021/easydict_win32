@@ -2571,7 +2571,7 @@ public sealed partial class SettingsPage : Page
         _settings.OpenAIApiKey = string.IsNullOrWhiteSpace(openAIKey) ? null : openAIKey;
         var openAIEndpoint = OpenAIEndpointBox.Text?.Trim();
         _settings.OpenAIEndpoint = string.IsNullOrWhiteSpace(openAIEndpoint)
-            ? "https://api.openai.com/v1/chat/completions"
+            ? OpenAIService.DefaultEndpoint
             : openAIEndpoint;
         _settings.OpenAIModel = GetEditableComboValue(OpenAIModelCombo, "gpt-4o-mini");
 
@@ -3266,7 +3266,7 @@ public sealed partial class SettingsPage : Page
 
                 openai.Configure(
                     string.IsNullOrWhiteSpace(apiKey) ? "" : apiKey,
-                    string.IsNullOrWhiteSpace(endpoint) ? "https://api.openai.com/v1/chat/completions" : endpoint,
+                    string.IsNullOrWhiteSpace(endpoint) ? OpenAIService.DefaultEndpoint : endpoint,
                     model);
             }
         }, TestOpenAIButton, OpenAIStatusText);

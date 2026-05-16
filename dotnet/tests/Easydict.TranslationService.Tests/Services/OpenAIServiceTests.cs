@@ -93,7 +93,7 @@ public class OpenAIServiceTests
     {
         // Arrange
         _service.Configure("sk-test");
-        _mockHandler.EnqueueStreamingResponse(new[] { """{"choices":[{"delta":{"content":"Hi"}}]}""" });
+        _mockHandler.EnqueueStreamingResponse(new[] { """{"type":"response.output_text.delta","delta":"Hi"}""" });
 
         var request = new TranslationRequest
         {
@@ -107,6 +107,53 @@ public class OpenAIServiceTests
         // Assert
         var sentRequest = _mockHandler.LastRequest;
         sentRequest!.RequestUri!.Host.Should().Be("api.openai.com");
+        sentRequest.RequestUri.AbsolutePath.Should().Be("/v1/responses");
+    }
+
+    [Fact]
+    public async Task TranslateStreamAsync_SendsResponsesRequestBody_ByDefault()
+    {
+        _service.Configure("sk-test");
+        _mockHandler.EnqueueStreamingResponse(new[] { """{"type":"response.output_text.delta","delta":"Hi"}""" });
+
+        var request = new TranslationRequest
+        {
+            Text = "Hello",
+            FromLanguage = Language.English,
+            ToLanguage = Language.SimplifiedChinese
+        };
+
+        await foreach (var _ in _service.TranslateStreamAsync(request)) { }
+
+        var body = _mockHandler.LastRequestBody;
+        body.Should().NotBeNull();
+        body.Should().Contain("\"input\":");
+        body.Should().Contain("\"instructions\":");
+        body.Should().Contain("\"store\":false");
+        body.Should().NotContain("\"messages\":");
+    }
+
+    [Fact]
+    public async Task TranslateStreamAsync_FallsBackToChatCompletions_ForChatEndpoint()
+    {
+        _service.Configure("sk-test", endpoint: "https://my-proxy.com/v1/chat/completions");
+        _mockHandler.EnqueueStreamingResponse(new[] { """{"choices":[{"delta":{"content":"Hi"}}]}""" });
+
+        var request = new TranslationRequest
+        {
+            Text = "Hello",
+            ToLanguage = Language.SimplifiedChinese
+        };
+
+        var chunks = new List<string>();
+        await foreach (var chunk in _service.TranslateStreamAsync(request))
+        {
+            chunks.Add(chunk);
+        }
+
+        chunks.Should().ContainSingle()
+            .Which.Should().Be("Hi");
+        _mockHandler.LastRequestBody.Should().Contain("\"messages\":");
     }
 
     [Fact]

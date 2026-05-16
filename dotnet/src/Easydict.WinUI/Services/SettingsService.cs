@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Easydict.TranslationService;
+using Easydict.TranslationService.Services;
 using Easydict.WinUI.Models;
 
 namespace Easydict.WinUI.Services;
@@ -78,7 +79,7 @@ public sealed class SettingsService
 
     // OpenAI settings
     public string? OpenAIApiKey { get; set; }
-    public string OpenAIEndpoint { get; set; } = "https://api.openai.com/v1/chat/completions";
+    public string OpenAIEndpoint { get; set; } = OpenAIService.DefaultEndpoint;
     public string OpenAIModel { get; set; } = "gpt-4o-mini";
     public double OpenAITemperature { get; set; } = 0.3;
 
@@ -576,7 +577,7 @@ public sealed class SettingsService
 
         // OpenAI settings
         OpenAIApiKey = GetValue<string?>(nameof(OpenAIApiKey), null);
-        OpenAIEndpoint = GetValue(nameof(OpenAIEndpoint), "https://api.openai.com/v1/chat/completions");
+        OpenAIEndpoint = NormalizeOpenAIEndpoint(GetValue(nameof(OpenAIEndpoint), OpenAIService.DefaultEndpoint));
         OpenAIModel = GetValue(nameof(OpenAIModel), "gpt-4o-mini");
         OpenAITemperature = GetValue(nameof(OpenAITemperature), 0.3);
 
@@ -1341,6 +1342,17 @@ public sealed class SettingsService
         {
             Save();
         }
+    }
+
+    private static string NormalizeOpenAIEndpoint(string? endpoint)
+    {
+        var normalized = string.IsNullOrWhiteSpace(endpoint)
+            ? OpenAIService.DefaultEndpoint
+            : endpoint.Trim();
+
+        return string.Equals(normalized, OpenAIService.LegacyChatCompletionsEndpoint, StringComparison.OrdinalIgnoreCase)
+            ? OpenAIService.DefaultEndpoint
+            : normalized;
     }
 }
 
