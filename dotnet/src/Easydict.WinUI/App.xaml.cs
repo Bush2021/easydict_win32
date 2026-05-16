@@ -15,6 +15,20 @@ namespace Easydict.WinUI
         [DllImport("user32.dll")]
         private static extern IntPtr GetForegroundWindow();
 
+        [DllImport("dwmapi.dll", PreserveSig = true)]
+        private static extern int DwmSetWindowAttribute(
+            IntPtr hwnd,
+            int dwAttribute,
+            ref int pvAttribute,
+            int cbAttribute);
+
+        private const int DwmwaUseImmersiveDarkMode = 20;
+        private const int DwmwaUseImmersiveDarkModeBefore20H1 = 19;
+        private const int DwmwaBorderColor = 34;
+        private const int DwmwaCaptionColor = 35;
+        private const int DwmwaTextColor = 36;
+        private const int DwmwaColorDefault = unchecked((int)0xFFFFFFFF);
+
         private Window? _window;
         private TrayIconService? _trayIconService;
         private HotkeyService? _hotkeyService;
@@ -1146,16 +1160,20 @@ namespace Easydict.WinUI
             try
             {
                 var titleBar = Instance._appWindow.TitleBar;
+                var hWnd = Instance._window is null
+                    ? IntPtr.Zero
+                    : WindowNative.GetWindowHandle(Instance._window);
 
                 // Defer to system colors when:
                 //  - Minimal mode (we suppress custom title bar painting),
-                //  - Element theme is Default (system theme — let WinUI track it),
+                //  - Element theme is Default (theme could not be resolved),
                 //  - High Contrast is active (must respect accessibility palette).
                 if (MinimalThemeService.IsMinimal(theme) ||
                     elementTheme == ElementTheme.Default ||
                     ThemeResourceService.IsHighContrastActive())
                 {
                     ResetTitleBarColors(titleBar);
+                    ResetDwmTitleBarChrome(hWnd);
                     return;
                 }
 
@@ -1193,6 +1211,12 @@ namespace Easydict.WinUI
                 titleBar.ButtonPressedForegroundColor = foreground;
                 titleBar.ButtonInactiveBackgroundColor = background;
                 titleBar.ButtonInactiveForegroundColor = inactiveForeground;
+
+                ApplyDwmTitleBarChrome(
+                    hWnd,
+                    elementTheme == ElementTheme.Dark,
+                    background,
+                    foreground);
             }
             catch (Exception ex)
             {
@@ -1233,6 +1257,80 @@ namespace Easydict.WinUI
             titleBar.ButtonInactiveBackgroundColor = null;
             titleBar.ButtonInactiveForegroundColor = null;
         }
+
+        private static void ApplyDwmTitleBarChrome(
+            IntPtr hWnd,
+            bool isDark,
+            Windows.UI.Color background,
+            Windows.UI.Color foreground)
+        {
+            if (hWnd == IntPtr.Zero)
+            {
+                return;
+            }
+
+            SetDwmImmersiveDarkMode(hWnd, isDark);
+
+            var captionColor = ToDwmColorRef(background);
+            SetDwmAttributeIfSupported(hWnd, DwmwaCaptionColor, captionColor);
+
+            var textColor = ToDwmColorRef(foreground);
+            SetDwmAttributeIfSupported(hWnd, DwmwaTextColor, textColor);
+
+            // Match the frame to the caption so the native border does not stay light
+            // around a dark app surface.
+            SetDwmAttributeIfSupported(hWnd, DwmwaBorderColor, captionColor);
+        }
+
+        private static void ResetDwmTitleBarChrome(IntPtr hWnd)
+        {
+            if (hWnd == IntPtr.Zero)
+            {
+                return;
+            }
+
+            SetDwmImmersiveDarkMode(hWnd, SystemThemeProbe.IsSystemDark() == true);
+
+            var defaultColor = DwmwaColorDefault;
+            SetDwmAttributeIfSupported(hWnd, DwmwaCaptionColor, defaultColor);
+            SetDwmAttributeIfSupported(hWnd, DwmwaTextColor, defaultColor);
+            SetDwmAttributeIfSupported(hWnd, DwmwaBorderColor, defaultColor);
+        }
+
+        private static void SetDwmImmersiveDarkMode(IntPtr hWnd, bool enabled)
+        {
+            var value = enabled ? 1 : 0;
+            var result = DwmSetWindowAttribute(
+                hWnd,
+                DwmwaUseImmersiveDarkMode,
+                ref value,
+                sizeof(int));
+
+            if (result == 0)
+            {
+                return;
+            }
+
+            value = enabled ? 1 : 0;
+            SetDwmAttributeIfSupported(hWnd, DwmwaUseImmersiveDarkModeBefore20H1, value);
+        }
+
+        private static void SetDwmAttributeIfSupported(IntPtr hWnd, int attribute, int value)
+        {
+            try
+            {
+                _ = DwmSetWindowAttribute(hWnd, attribute, ref value, sizeof(int));
+            }
+            catch (DllNotFoundException)
+            {
+            }
+            catch (EntryPointNotFoundException)
+            {
+            }
+        }
+
+        private static int ToDwmColorRef(Windows.UI.Color color)
+            => color.R | (color.G << 8) | (color.B << 16);
 
         private static AppWindow ConfigureWindow(Window window)
         {
